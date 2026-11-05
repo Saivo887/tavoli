@@ -23,17 +23,20 @@ export default function Profilo() {
   const [errore, setErrore] = useState('');
   const [salva, setSalva] = useState(false);
   const [carico, setCarico] = useState(false);
+  const [appuntamenti, setAppuntamenti] = useState([]);
 
   useEffect(() => {
     if (!user || !profilo || f) return;
     supabase.from('profili_privati').select('nome_vero').eq('id', user.id).maybeSingle().then(({ data }) => {
-      setF({ nickname: profilo.nickname, nome: data?.nome_vero || '', bio: profilo.bio || '', interessi: profilo.interessi || [], privato: profilo.privato });
+      setF({ nickname: profilo.nickname, nome: data?.nome_vero || '', bio: profilo.bio || '', interessi: profilo.interessi || [], privato: profilo.privato,
+        frase: profilo.frase || '', copertina: profilo.copertina || '' });
     });
   }, [user, profilo, f]);
 
   useEffect(() => {
     if (!user) return;
     supabase.rpc('statistiche', { u: user.id }).then(({ data }) => setStat(data));
+    supabase.from('palinsesto').select('*').eq('creatore_id', user.id).eq('attivo', true).order('giorno').then(({ data }) => setAppuntamenti(data || []));
     (async () => {
       const [{ data: a }, { data: b }] = await Promise.all([
         supabase.from('seguiti').select('seguito_id').eq('follower_id', user.id).eq('stato', 'accettato'),
@@ -53,7 +56,7 @@ export default function Profilo() {
     const nick = f.nickname.trim();
     if (!/^[A-Za-z0-9._]{3,24}$/.test(nick)) { setErrore('Il nickname deve avere 3-24 caratteri: lettere, numeri, punto o trattino basso.'); return; }
     setSalva(true);
-    const { error } = await supabase.from('profili').update({ nickname: nick, bio: f.bio.trim(), interessi: f.interessi, privato: f.privato }).eq('id', user.id);
+    const { error } = await supabase.from('profili').update({ nickname: nick, bio: f.bio.trim(), interessi: f.interessi, privato: f.privato, frase: f.frase.trim() || null, copertina: f.copertina || null }).eq('id', user.id);
     if (!error) {
       const { error: e2 } = await supabase.from('profili_privati').update({ nome_vero: f.nome.trim() || null }).eq('id', user.id);
       if (e2) setErrore(messaggioErrore(e2));
@@ -102,7 +105,8 @@ export default function Profilo() {
       <div className="head"><div><h1>Il tuo profilo</h1><p className="sub">Così ti vedono gli altri.</p></div>
         <Link className="btn" href={`/u/${profilo.nickname}`}>Vedi come lo vedono gli altri</Link></div>
       <div className="prof">
-        <div className="panel">
+        <div className="panel con-copertina">
+          <div className="copertina" style={{ '--tc': TC[profilo.copertina || profilo.interessi?.[0] || 'Altro'] }} />
           <div className="idcard">
             <Avatar nick={profilo.nickname} url={profilo.avatar_url} />
             <div>
@@ -111,6 +115,7 @@ export default function Profilo() {
               <div className="chips" style={{ marginTop: 8 }}>{profilo.privato ? <span className="tag"><Ico n="lock" />Profilo privato</span> : <span className="tag">Profilo aperto</span>}</div>
             </div>
           </div>
+          {profilo.frase && <p className="frase">“{profilo.frase}”</p>}
           {profilo.bio && <p style={{ margin: 0 }}>{profilo.bio}</p>}
           {profilo.interessi?.length > 0 && <div className="chips">{profilo.interessi.map(i => <span key={i} className="tag tema" style={{ '--tc': TC[i] }}>{i}</span>)}</div>}
           <Statistiche s={stat} />
@@ -131,6 +136,13 @@ export default function Profilo() {
           <div className="field"><label htmlFor="p-nome">Nome vero (facoltativo)</label>
             <input id="p-nome" value={f.nome} maxLength={60} placeholder="Lascia vuoto se non vuoi mostrarlo" onChange={e => setF({ ...f, nome: e.target.value })} />
             <span className="hint">Lo vedono solo i tuoi follower.</span></div>
+          <div className="field"><label htmlFor="p-frase">Su cosa mi piace discutere</label>
+            <input id="p-frase" value={f.frase} maxLength={120} placeholder="Es. Di scuola, di libri e di tutto quello che si può migliorare" onChange={e => setF({ ...f, frase: e.target.value })} />
+            <span className="hint">Compare in grande sul tuo profilo e quando ti suggeriamo ad altri.</span></div>
+          <div className="field"><span className="lb">Colore della copertina</span>
+            <div className="chips">{TEMI.map(t => (
+              <button type="button" key={t} className="chip" style={{ '--tc': TC[t] }} aria-pressed={f.copertina === t} onClick={() => setF({ ...f, copertina: t })}><i />{t}</button>
+            ))}</div></div>
           <div className="field"><label htmlFor="p-bio">Bio</label>
             <textarea id="p-bio" rows={2} maxLength={160} value={f.bio} onChange={e => setF({ ...f, bio: e.target.value })} /></div>
           <div className="field"><span className="lb">Tipo di profilo</span>
@@ -162,8 +174,22 @@ export default function Profilo() {
         <div className="panel">
           <h3 style={{ fontSize: 18 }}>Impostazioni</h3>
           <NotificheTelefono />
+          {appuntamenti.length > 0 && (
+            <div className="field">
+              <span className="lb">I tuoi appuntamenti fissi</span>
+              <div className="list">{appuntamenti.map(a => (
+                <div className="prow" key={a.id}>
+                  <span><b>{a.titolo}</b><span className="hint" style={{ display: 'block' }}>Ogni {['', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato', 'domenica'][a.giorno]} alle {String(a.ora).slice(0, 5)} · {a.tema}</span></span>
+                  <button type="button" className="btn sm danger" onClick={async () => {
+                    const { error } = await supabase.from('palinsesto').update({ attivo: false }).eq('id', a.id);
+                    if (error) toast(messaggioErrore(error)); else { setAppuntamenti(x => x.filter(y => y.id !== a.id)); toast('Appuntamento fermato: i prossimi non verranno più creati.'); }
+                  }}>Ferma</button>
+                </div>
+              ))}</div>
+            </div>
+          )}
           {admin && <Link className="btn" style={{ alignSelf: 'flex-start' }} href="/admin"><Ico n="flag" />Segnalazioni da gestire</Link>}
-          <p className="legali" style={{ textAlign: 'left' }}><Link href="/termini">Termini d’uso</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/cookie">Cookie</Link></p>
+          <p className="legali" style={{ textAlign: 'left' }}><Link href="/regole">Regole della casa</Link> · <Link href="/termini">Termini d’uso</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/cookie">Cookie</Link></p>
           <button className="btn solomobile" style={{ alignSelf: 'flex-start' }} onClick={async () => { await supabase.auth.signOut(); router.replace('/accedi'); }}><Ico n="out" />Esci</button>
         </div>
         <div className="panel zona-rischio">

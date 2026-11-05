@@ -7,6 +7,13 @@ export default function Statistiche({ s }) {
   const max = Math.max(1, ...(s.temi || []).map(t => t.n));
   return (
     <>
+      {s.distintivi?.length > 0 && (
+        <div className="distintivi">
+          {s.distintivi.map(d => (
+            <span key={d.id} className={`distintivo d-${d.id}`} title={d.desc}><i />{d.nome}</span>
+          ))}
+        </div>
+      )}
       <div className="stats">
         <div className="stat"><b>{s.follower}</b><span>follower</span></div>
         <div className="stat"><b>{s.seguiti}</b><span>seguiti</span></div>
@@ -16,6 +23,8 @@ export default function Statistiche({ s }) {
           <div className="stat"><b>{s.ospite}</b><span>da ospite</span></div>
           <div className="stat"><b>{s.pubblico}</b><span>dal pubblico</span></div>
           <div className="stat"><b>{String(s.ore ?? 0).replace('.', ',')}</b><span>ore al tavolo</span></div>
+          <div className="stat"><b>{s.riconoscimenti?.argomento ?? 0}</b><span>buoni argomenti</span></div>
+          <div className="stat"><b>{s.riconoscimenti?.cambiare_idea ?? 0}</b><span>idee cambiate</span></div>
         </>}
       </div>
       {s.visibile && s.temi?.length > 0 && (

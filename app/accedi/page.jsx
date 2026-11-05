@@ -31,11 +31,15 @@ export default function Accedi() {
   const [info, setInfo] = useState('');
   const [attesa, setAttesa] = useState(false);
 
-  useEffect(() => { if (session) router.replace('/'); }, [session, router]);
+  const [dopo, setDopo] = useState('/');
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
     if (p.get('eliminato')) setInfo('Il tuo account è stato eliminato. Ci dispiace vederti andare.');
+    if (p.get('modo') === 'registrati') setModo('registrati');
+    const d = p.get('dopo');
+    if (d && d.startsWith('/') && !d.startsWith('//')) setDopo(d);
   }, []);
+  useEffect(() => { if (session) router.replace(dopo); }, [session, router, dopo]);
 
   function cambia(m) { setModo(m); setErrore(''); setInfo(''); }
 
@@ -61,7 +65,7 @@ export default function Accedi() {
           email, password,
           options: {
             data: { nickname: nick, nome_vero: nome.trim(), data_nascita: nascita, termini: true },
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: window.location.origin + dopo,
           },
         });
         if (error) throw error;
@@ -77,7 +81,7 @@ export default function Accedi() {
   return (
     <div className="auth">
       <section className="hero">
-        <div className="brand"><i />{NOME}</div>
+        <Link href="/" className="brand"><i />{NOME}</Link>
         <h1>Siediti al tavolo.<br />Confrontati davvero.</h1>
         <p>Apri un tavolo su un tema, scegli quante sedie mettere e decidi tu le regole. Chi non trova posto ascolta dal pubblico e partecipa in chat.</p>
         <div className="temirow">{TEMI.slice(0, 5).map(t => <span key={t} style={{ background: TC[t] }}>{t}</span>)}</div>

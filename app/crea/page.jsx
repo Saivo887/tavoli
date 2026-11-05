@@ -7,6 +7,15 @@ import { Ico, Seg } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { TC, TEMI, messaggioErrore } from '@/lib/temi';
 
+const IDEE = {
+  Politica: ['Salario minimo in Italia: sì o no?', 'Il voto ai sedicenni ha senso?', 'Tasse sui grandi patrimoni: giusto o controproducente?', 'L’Europa dovrebbe avere un esercito comune?', 'Perché i giovani non vanno a votare?'],
+  Scuola: ['I compiti a casa servono ancora?', 'Telefono in classe: vietarlo del tutto?', 'L’intelligenza artificiale a scuola: aiuto o scorciatoia?', 'Il voto in pagella misura davvero quanto sai?', 'Settimana corta a scuola: favorevoli o contrari?'],
+  Studio: ['Il tuo metodo di studio migliore', 'Università o lavoro subito dopo il diploma?', 'Come restare concentrati con il telefono vicino', 'Studiare in gruppo o da soli?', 'Vale ancora la pena fare un master?'],
+  Psicologia: ['Ansia da prestazione: come la gestite?', 'Solitudine nell’era dei social', 'Andare dallo psicologo è ancora un tabù?', 'Come si dice di no senza sentirsi in colpa', 'Burnout: come ve ne siete accorti?'],
+  Relazioni: ['Relazioni a distanza: funzionano davvero?', 'Amicizia tra uomo e donna: esiste?', 'Gelosia: quando diventa troppo?', 'Conoscersi con le app: pro e contro', 'Convivere prima del matrimonio?'],
+  Altro: ['Lo smart working ci rende più felici?', 'Meglio vivere in città o in provincia?', 'Il libro che ti ha cambiato idea su qualcosa', 'I social ci uniscono o ci dividono?', 'Una cosa che faresti diversamente a vent’anni'],
+};
+
 function domaniAlle21() {
   const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(21, 0, 0, 0);
   const p = n => String(n).padStart(2, '0');
@@ -24,6 +33,7 @@ export default function Crea() {
   const [vis, setVis] = useState('pubblico');
   const [quandoT, setQuando] = useState('ora');
   const [data, setData] = useState(domaniAlle21());
+  const [settimanale, setSettimanale] = useState(false);
   const [errore, setErrore] = useState('');
   const [attesa, setAttesa] = useState(false);
 
@@ -40,10 +50,11 @@ export default function Crea() {
     setAttesa(true);
     const { data: id, error } = await supabase.rpc('crea_tavolo', {
       p_titolo: titolo.trim(), p_tema: tema, p_sedie: sedie, p_parola: parola, p_ingresso: ingresso, p_visibilita: vis, p_inizio: inizio,
+      p_settimanale: !!inizio && settimanale,
     });
     setAttesa(false);
     if (error) { setErrore(messaggioErrore(error)); return; }
-    if (inizio) { toast('Tavolo programmato. Chi ti segue con la campanella è stato avvisato.'); router.push('/'); }
+    if (inizio) { toast(settimanale ? 'Appuntamento fisso creato: il tavolo tornerà ogni settimana.' : 'Tavolo programmato. Chi ti segue con la campanella è stato avvisato.'); router.push('/'); }
     else router.push(`/tavolo/${id}`);
   }
 
@@ -54,6 +65,10 @@ export default function Crea() {
         <div className="field">
           <label htmlFor="c-title">Titolo della discussione</label>
           <input id="c-title" maxLength={90} value={titolo} onChange={e => setTitolo(e.target.value)} placeholder="Es. Lo smart working ci rende più felici?" />
+          <div className="idee">
+            <span className="hint">Idee per {tema}:</span>
+            {IDEE[tema].map(i => <button type="button" key={i} className="idea" style={{ '--tc': TC[tema] }} onClick={() => setTitolo(i)}>{i}</button>)}
+          </div>
         </div>
         <div className="field">
           <span className="lb">Tema</span>
@@ -91,7 +106,13 @@ export default function Crea() {
         <div className="field">
           <span className="lb">Quando</span>
           <Seg value={quandoT} onChange={setQuando} options={[['ora', 'Adesso'], ['prog', 'Programma']]} />
-          {quandoT === 'prog' && <input type="datetime-local" style={{ maxWidth: 260 }} value={data} onChange={e => setData(e.target.value)} />}
+          {quandoT === 'prog' && <>
+            <input type="datetime-local" style={{ maxWidth: 260 }} value={data} onChange={e => setData(e.target.value)} />
+            <label className="check">
+              <input type="checkbox" checked={settimanale} onChange={e => setSettimanale(e.target.checked)} />
+              <span><b>Ripeti ogni settimana</b> stesso giorno e stessa ora. Diventa un appuntamento fisso: chi ti segue sa quando trovarti.</span>
+            </label>
+          </>}
         </div>
         {errore && <p className="err" role="alert">{errore}</p>}
         <div className="trow">

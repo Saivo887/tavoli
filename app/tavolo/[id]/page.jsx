@@ -4,6 +4,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import Segnala from '@/components/Segnala';
+import Verbale from '@/components/Verbale';
+import TavoloOspite from '@/components/TavoloOspite';
 import { useAuth, useToast } from '@/components/Providers';
 import { Avatar, Ico, Seg, Modale, Caricamento } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
@@ -22,10 +24,47 @@ async function copia(testo) {
   try { await navigator.clipboard.writeText(testo); return true; } catch { return false; }
 }
 
+const REAZIONI = [['👏', 'Applausi'], ['👍', 'D’accordo'], ['👎', 'Non d’accordo'], ['🤔', 'Ci penso'], ['😂', 'Che ridere'], ['❤️', 'Bello']];
+
+function leggiSuoni() { try { return localStorage.getItem('tavoli-suoni') !== 'no'; } catch { return true; } }
+function salvaSuoni(v) { try { localStorage.setItem('tavoli-suoni', v ? 'si' : 'no'); } catch {} }
+let audioCtx = null;
+function suono(tipo) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    const t0 = audioCtx.currentTime;
+    o.type = 'sine';
+    o.frequency.setValueAtTime(tipo === 'siede' ? 520 : 760, t0);
+    o.frequency.exponentialRampToValueAtTime(tipo === 'siede' ? 780 : 980, t0 + 0.12);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.08, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + 0.4);
+  } catch {}
+}
+
+async function condividi(t, toast) {
+  const url = `${window.location.origin}/tavolo/${t.id}`;
+  const testo = t.stato === 'chiuso' ? `Com’è andata la discussione “${t.titolo}” su Tavoli` : `Vieni al tavolo “${t.titolo}” su Tavoli`;
+  if (navigator.share) { try { await navigator.share({ title: t.titolo, text: testo, url }); return; } catch { return; } }
+  if (await copia(url)) toast('Link copiato: incollalo dove vuoi.');
+  else toast(url);
+}
+
 export default function Tavolo() {
   const { id } = useParams();
+  const { session } = useAuth();
+  if (session === undefined) return <Caricamento />;
+  if (!session) return <TavoloOspite id={Number(id)} />;
+  return <TavoloMembro />;
+}
+
+function TavoloMembro() {
+  const { id } = useParams();
   const tid = Number(id);
-  const { user } = useAuth();
+  const { user, admin } = useAuth();
   const toast = useToast();
   const router = useRouter();
   const [tav, setTav] = useState(null);
@@ -41,9 +80,26 @@ export default function Tavolo() {
   const [segnala, setSegnala] = useState(null);
   const [invito, setInvito] = useState(null); // { link, amici, invitati }
   const [, setTick] = useState(0);
+  const [reazioni, setReazioni] = useState([]);
+  const [suoni, setSuoni] = useState(true);
+  const [prenotato, setPrenotato] = useState(false);
+  const [dati, setDati] = useState({}); // riconoscimenti già dati: { 'uid:tipo': true }
   const feedRef = useRef(null);
   const cache = useRef({});
   const ultimoPubblico = useRef(0);
+  const chRef = useRef(null);
+  const ultimaReazione = useRef(0);
+  const sedutiPrima = useRef(null);
+  const suoniRef = useRef(true);
+  suoniRef.current = suoni;
+
+  useEffect(() => { setSuoni(leggiSuoni()); }, []);
+
+  const mostraReazione = useCallback((e) => {
+    const r = { id: Math.random().toString(36).slice(2), e, x: 15 + Math.random() * 70, d: (Math.random() * 0.6).toFixed(2) };
+    setReazioni(prev => [...prev.slice(-24), r]);
+    setTimeout(() => setReazioni(prev => prev.filter(x => x.id !== r.id)), 2800);
+  }, []);
 
   const caricaTavolo = useCallback(async () => {
     const { data } = await supabase.from('tavoli').select('*').eq('id', tid).maybeSingle();
@@ -87,7 +143,13 @@ export default function Tavolo() {
       const t = await caricaTavolo();
       if (!vivo) return;
       if (!t) { setErrore('Questo tavolo non esiste o non puoi vederlo.'); setStato('errore'); return; }
-      if (t.stato !== 'aperto') { setStato('dentro'); await caricaMsgs(); return; }
+      if (t.stato !== 'aperto') {
+        if (t.stato === 'programmato') {
+          const { data: pr } = await supabase.from('prenotazioni').select('tavolo_id').eq('tavolo_id', tid).eq('utente_id', user.id).maybeSingle();
+          if (vivo) setPrenotato(!!pr);
+        }
+        setStato('dentro'); await caricaMsgs(); return;
+      }
       const { error } = await supabase.rpc('entra_tavolo', { t: tid });
       if (!vivo) return;
       if (error) { setErrore(messaggioErrore(error)); setStato('errore'); return; }
@@ -115,17 +177,41 @@ export default function Tavolo() {
         }
         setMsgs(prev => prev.some(x => x.id === m.id) ? prev : [...prev, { ...m, profili: cache.current[m.utente_id] }].slice(-300));
       })
+      .on('broadcast', { event: 'reazione' }, ({ payload }) => { if (payload?.e) mostraReazione(payload.e); })
       .subscribe();
+    chRef.current = ch;
     const ping = setInterval(() => supabase.rpc('ping', { t: tid }), 25000);
     const tick = setInterval(() => setTick(x => x + 1), 4000);
     const esci = () => { supabase.rpc('esci_tavolo', { t: tid }); };
     window.addEventListener('pagehide', esci);
     return () => {
+      chRef.current = null;
       supabase.removeChannel(ch); clearInterval(ping); clearInterval(tick);
       window.removeEventListener('pagehide', esci);
       esci();
     };
-  }, [aperto, tid, caricaParts, caricaRichieste]);
+  }, [aperto, tid, caricaParts, caricaRichieste, mostraReazione]);
+
+  // suono quando qualcuno si siede
+  useEffect(() => {
+    const n = parts.filter(p => p.ruolo !== 'pubblico').length;
+    if (sedutiPrima.current !== null && n > sedutiPrima.current && suoniRef.current) suono('siede');
+    sedutiPrima.current = n;
+  }, [parts]);
+
+  function reagisci(e) {
+    if (Date.now() - ultimaReazione.current < 700) return;
+    ultimaReazione.current = Date.now();
+    mostraReazione(e);
+    chRef.current?.send({ type: 'broadcast', event: 'reazione', payload: { e } });
+  }
+
+  async function riconosci(u, tipo) {
+    const { error } = await supabase.rpc('riconosci', { t: tid, u, p_tipo: tipo });
+    if (error) { toast(messaggioErrore(error)); return; }
+    setDati(d => ({ ...d, [`${u}:${tipo}`]: true }));
+    toast(tipo === 'argomento' ? 'Riconoscimento inviato: buon argomento.' : 'Gli hai detto che ti ha fatto cambiare idea.');
+  }
 
   useEffect(() => { const f = feedRef.current; if (f) f.scrollTop = f.scrollHeight; }, [msgs, tab]);
 
@@ -143,6 +229,14 @@ export default function Tavolo() {
         .then(({ data }) => { if (data) { setErrore('Sei stato espulso da questo tavolo.'); setStato('errore'); } });
     }
   }, [parts, io, aperto, tid, user]);
+
+  // il verbale arriva qualche secondo dopo la chiusura
+  useEffect(() => {
+    if (stato !== 'dentro' || tav?.stato !== 'chiuso' || tav?.verbale) return;
+    let n = 0;
+    const iv = setInterval(() => { n++; caricaTavolo(); if (n > 8) clearInterval(iv); }, 4000);
+    return () => clearInterval(iv);
+  }, [stato, tav?.stato, tav?.verbale, caricaTavolo]);
 
   useEffect(() => {
     const chiudi = () => setPop(null);
@@ -240,19 +334,38 @@ export default function Tavolo() {
   if (tav.stato !== 'aperto') {
     return (
       <Shell wide>
-        <section className="scene" style={{ '--tc': tc }}>
+        <section className="scene" data-tema={tav.tema} style={{ '--tc': tc }}>
           <Link className="back" href="/"><Ico n="back" />Tutti i tavoli</Link>
-          <div className="chips"><span className="tag tema">{tav.tema}</span><span className="tag">{tav.stato === 'chiuso' ? 'Chiuso' : 'In programma'}</span></div>
-          <h1>{tav.titolo}</h1>
-          {tav.stato === 'programmato'
-            ? <p className="sub">Si apre {dataProgrammata(tav.inizio_previsto).toLowerCase()}.</p>
-            : <p className="sub">Questa discussione è finita. Ecco cosa si è scritto al tavolo.</p>}
-          {tav.stato === 'programmato' && creatore && (
-            <div><button className="btn primary" onClick={async () => { if (await rpc('apri_tavolo', {})) window.location.reload(); }}>Apri il tavolo ora</button></div>
+          <div className="head">
+            <div>
+              <div className="chips"><span className="tag tema">{tav.tema}</span><span className="tag">{tav.stato === 'chiuso' ? 'Concluso' : 'In programma'}</span>{tav.palinsesto_id && <span className="tag">Ogni settimana</span>}</div>
+              <h1 style={{ marginTop: 10 }}>{tav.titolo}</h1>
+              {tav.stato === 'programmato'
+                ? <p className="sub">Si apre {dataProgrammata(tav.inizio_previsto).toLowerCase()}.</p>
+                : <p className="sub">Questa discussione è finita. Ecco com’è andata.</p>}
+            </div>
+            <div className="chips">
+              <button className="btn" onClick={() => condividi(tav, toast)}><Ico n="link" />Condividi</button>
+              {tav.visibilita === 'pubblico' && <a className="btn" href={`/card/${tav.id}`} target="_blank" rel="noreferrer">Card per le storie</a>}
+            </div>
+          </div>
+          {tav.stato === 'programmato' && (
+            <div className="chips">
+              {creatore
+                ? <button className="btn primary" onClick={async () => { if (await rpc('apri_tavolo', {})) window.location.reload(); }}>Apri il tavolo ora</button>
+                : <button className={`btn ${prenotato ? 'on' : 'primary'}`} onClick={async () => {
+                    const { error } = await supabase.rpc('prenota', { t: tid, v: !prenotato });
+                    if (error) toast(messaggioErrore(error)); else { setPrenotato(!prenotato); toast(prenotato ? 'Avviso tolto.' : 'Ti avviseremo appena il tavolo si apre.'); }
+                  }}><Ico n="bell" />{prenotato ? 'Ti avviseremo' : 'Avvisami quando inizia'}</button>}
+            </div>
           )}
           {tav.stato === 'chiuso' && (
-            <div className="panel"><div className="feed">{msgs.filter(m => m.canale !== 'pubblico').map(m => <Msg key={m.id} m={m} io={user.id} />)}
-              {!msgs.length && <p className="hint">Nessun messaggio.</p>}</div></div>
+            <div className="room">
+              <div className="panel"><h3 style={{ fontSize: 18, color: '#fff7ee' }}>Verbale</h3><Verbale v={tav.verbale} /></div>
+              <div className="panel"><div className="label">Interventi scritti al tavolo</div>
+                <div className="feed">{msgs.filter(m => m.canale !== 'pubblico').map(m => <Msg key={m.id} m={m} io={user.id} />)}
+                  {!msgs.length && <p className="hint">Nessun messaggio.</p>}</div></div>
+            </div>
           )}
         </section>
       </Shell>
@@ -338,7 +451,7 @@ export default function Tavolo() {
 
   return (
     <Shell wide>
-      <section className="scene" style={{ '--tc': tc }} onClick={() => setPop(null)}>
+      <section className="scene" data-tema={tav.tema} style={{ '--tc': tc }} onClick={() => setPop(null)}>
         <Link className="back" href="/"><Ico n="back" />Tutti i tavoli</Link>
         <div className="head">
           <div>
@@ -356,6 +469,12 @@ export default function Tavolo() {
           <div className="chips">
             {voce.audioBloccato && <button className="btn primary" onClick={voce.attivaAudio}><Ico n="volume" />Attiva l’audio</button>}
             {puoInvitare && <button className="btn" onClick={apriInvito}><Ico n="link" />Invita</button>}
+            {tav.visibilita === 'pubblico' && <button className="btn" onClick={() => condividi(tav, toast)}>Condividi</button>}
+            <button className="btn" aria-pressed={suoni} onClick={() => { const v = !suoni; setSuoni(v); salvaSuoni(v); if (v) suono('siede'); }}>{suoni ? 'Suoni sì' : 'Suoni no'}</button>
+            {admin && <button className="btn" onClick={async () => {
+              const { error } = await supabase.rpc('admin_evidenza', { t: tid, v: !tav.in_evidenza });
+              if (error) toast(messaggioErrore(error)); else { toast(tav.in_evidenza ? 'Tolto dall’evidenza.' : 'Ora è il tavolo del giorno.'); caricaTavolo(); }
+            }}>{tav.in_evidenza ? 'Togli dall’evidenza' : 'Tavolo del giorno'}</button>}
             {!creatore && <button className="btn" onClick={() => setSegnala({ tavolo: tid, descrizione: 'questo tavolo' })}><Ico n="flag" />Segnala</button>}
           </div>
         </div>
@@ -366,6 +485,13 @@ export default function Tavolo() {
               <div className="wood" />{tazze}
               <div className="placard"><strong>{tav.titolo}</strong><small>{seduti.length}/{tav.sedie} sedie occupate</small></div>
               {sedie}
+              <div className="reazioni-volo" aria-hidden="true">
+                {reazioni.map(r => <span key={r.id} style={{ left: `${r.x}%`, animationDelay: `${r.d}s` }}>{r.e}</span>)}
+              </div>
+            </div>
+
+            <div className="reazioni-barra" role="group" aria-label="Reagisci">
+              {REAZIONI.map(([e, l]) => <button key={e} onClick={e2 => { e2.stopPropagation(); reagisci(e); }} title={l} aria-label={l}>{e}</button>)}
             </div>
 
             <div className="controls">
@@ -481,6 +607,11 @@ export default function Tavolo() {
                 {seguo[pp.utente_id] === 'accettato' ? 'Lo segui già' : seguo[pp.utente_id] === 'richiesta' ? 'Richiesta inviata' : 'Segui'}
               </button>
             )}
+            {!ppMe && pp.ruolo !== 'fuori' && <>
+              <div className="label" style={{ marginTop: 6 }}>Riconoscimento</div>
+              <button className="btn sm" disabled={dati[`${pp.utente_id}:argomento`]} onClick={() => riconosci(pp.utente_id, 'argomento')}>{dati[`${pp.utente_id}:argomento`] ? 'Buon argomento: inviato' : 'Buon argomento'}</button>
+              <button className="btn sm" disabled={dati[`${pp.utente_id}:cambiare_idea`]} onClick={() => riconosci(pp.utente_id, 'cambiare_idea')}>{dati[`${pp.utente_id}:cambiare_idea`] ? 'Inviato' : 'Mi hai fatto cambiare idea'}</button>
+            </>}
             {ppModerabile && <>
               <div className="label" style={{ marginTop: 6 }}>Gestione</div>
               {tav.parola === 'mano' && pp.ruolo === 'ospite' && <button className="btn sm" onClick={() => { rpc('modera', { u: pp.utente_id, azione: 'parola' }); setPop(null); }}>Dai la parola</button>}

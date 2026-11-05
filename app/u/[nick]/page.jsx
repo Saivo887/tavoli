@@ -68,7 +68,8 @@ export default function Utente() {
   return (
     <Shell>
       <div className="prof">
-        <div className="panel">
+        <div className="panel con-copertina">
+          <div className="copertina" style={{ '--tc': TC[p.copertina || p.interessi?.[0] || 'Altro'] }} />
           <div className="idcard">
             <Avatar nick={p.nickname} url={p.avatar_url} />
             <div>
@@ -81,6 +82,7 @@ export default function Utente() {
               </div>
             </div>
           </div>
+          {p.frase && <p className="frase">“{p.frase}”</p>}
           {p.bio && <p style={{ margin: 0 }}>{p.bio}</p>}
           {p.interessi?.length > 0 && <div className="chips">{p.interessi.map(i => <span key={i} className="tag tema" style={{ '--tc': TC[i] }}>{i}</span>)}</div>}
           <div className="chips">

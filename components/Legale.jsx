@@ -6,7 +6,7 @@ export default function Legale({ titolo, children }) {
     <div className="legale">
       <header>
         <Link href="/" className="brand"><i />{NOME}</Link>
-        <nav><Link href="/termini">Termini</Link><Link href="/privacy">Privacy</Link><Link href="/cookie">Cookie</Link></nav>
+        <nav><Link href="/regole">Regole</Link><Link href="/termini">Termini</Link><Link href="/privacy">Privacy</Link><Link href="/cookie">Cookie</Link></nav>
       </header>
       <article>
         <h1>{titolo}</h1>

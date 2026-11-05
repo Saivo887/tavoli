@@ -18,6 +18,9 @@ export default function Shell({ children, wide }) {
   useEffect(() => {
     if (session === null) router.replace('/accedi');
   }, [session, router]);
+  useEffect(() => {
+    if (profilo && !profilo.onboarding_fatto && !profilo.sospeso) router.replace('/benvenuto');
+  }, [profilo, router]);
 
   useEffect(() => {
     if (!user) return;
@@ -82,7 +85,7 @@ export default function Shell({ children, wide }) {
           <button className="esci" onClick={async () => { await supabase.auth.signOut(); router.replace('/accedi'); }}>
             <Ico n="out" />Esci
           </button>
-          <p className="legali"><Link href="/termini">Termini</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/cookie">Cookie</Link></p>
+          <p className="legali"><Link href="/regole">Regole</Link> · <Link href="/termini">Termini</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/cookie">Cookie</Link></p>
         </div>
       </aside>
       <main><div className={wide ? 'wrap wide' : 'wrap'}>{children}</div></main>

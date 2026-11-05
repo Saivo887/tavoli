@@ -15,6 +15,8 @@ const TESTI = {
   tavolo_programmato: n => `ha programmato il tavolo “${n.tavoli?.titolo || ''}”`,
   invito_tavolo: n => `ti invita al tavolo “${n.tavoli?.titolo || ''}”`,
   segnalazione: () => 'è stato segnalato: c’è una nuova segnalazione da gestire',
+  riconoscimento_argomento: n => `ha apprezzato un tuo argomento al tavolo “${n.tavoli?.titolo || ''}”`,
+  riconoscimento_cambiare_idea: n => `dice che gli hai fatto cambiare idea al tavolo “${n.tavoli?.titolo || ''}”`,
 };
 
 export default function Notifiche() {
