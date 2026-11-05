@@ -11,6 +11,7 @@
     "@supabase/supabase-js": "^2.57.4",
     "next": "^15.5.9",
     "react": "^19.1.2",
-    "react-dom": "^19.1.2"
+    "react-dom": "^19.1.2",
+    "livekit-client": "^2.15.0"
   }
 }

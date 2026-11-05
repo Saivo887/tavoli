@@ -3,14 +3,20 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import Statistiche from '@/components/Statistiche';
+import NotificheTelefono from '@/components/NotificheTelefono';
+import { useRouter } from 'next/navigation';
 import { useAuth, useToast } from '@/components/Providers';
 import { Avatar, Ico, Seg, Caricamento } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { TC, TEMI, messaggioErrore } from '@/lib/temi';
 
 export default function Profilo() {
-  const { user, profilo, ricaricaProfilo } = useAuth();
+  const { user, profilo, ricaricaProfilo, admin } = useAuth();
   const toast = useToast();
+  const router = useRouter();
+  const [elimina, setElimina] = useState(false);
+  const [conferma, setConferma] = useState('');
+  const [eliminando, setEliminando] = useState(false);
   const [f, setF] = useState(null);
   const [stat, setStat] = useState(null);
   const [amici, setAmici] = useState([]);
@@ -74,6 +80,21 @@ export default function Profilo() {
     ricaricaProfilo();
   }
 
+  async function eliminaAccount() {
+    setEliminando(true);
+    try {
+      const { data: files } = await supabase.storage.from('avatar').list(user.id, { limit: 100 });
+      if (files?.length) await supabase.storage.from('avatar').remove(files.map(x => `${user.id}/${x.name}`));
+      const { error } = await supabase.rpc('elimina_account');
+      if (error) throw error;
+      await supabase.auth.signOut();
+      router.replace('/accedi?eliminato=1');
+    } catch (err) {
+      toast(messaggioErrore(err));
+      setEliminando(false);
+    }
+  }
+
   if (!profilo || !f) return <Shell><Caricamento /></Shell>;
 
   return (
@@ -135,6 +156,34 @@ export default function Profilo() {
             </div>
           </div>
         </form>
+      </div>
+
+      <div className="prof">
+        <div className="panel">
+          <h3 style={{ fontSize: 18 }}>Impostazioni</h3>
+          <NotificheTelefono />
+          {admin && <Link className="btn" style={{ alignSelf: 'flex-start' }} href="/admin"><Ico n="flag" />Segnalazioni da gestire</Link>}
+          <p className="legali" style={{ textAlign: 'left' }}><Link href="/termini">Termini d’uso</Link> · <Link href="/privacy">Privacy</Link> · <Link href="/cookie">Cookie</Link></p>
+          <button className="btn solomobile" style={{ alignSelf: 'flex-start' }} onClick={async () => { await supabase.auth.signOut(); router.replace('/accedi'); }}><Ico n="out" />Esci</button>
+        </div>
+        <div className="panel zona-rischio">
+          <h3 style={{ fontSize: 18 }}>Elimina l’account</h3>
+          <p className="hint" style={{ margin: 0 }}>Cancelliamo profilo, foto, messaggi, tavoli che hai creato, chat private e persone seguite. Non si può tornare indietro.</p>
+          {!elimina ? (
+            <button className="btn danger" style={{ alignSelf: 'flex-start' }} onClick={() => setElimina(true)}>Elimina il mio account</button>
+          ) : (
+            <>
+              <div className="field">
+                <label htmlFor="conf-el">Per confermare scrivi ELIMINA</label>
+                <input id="conf-el" value={conferma} onChange={e => setConferma(e.target.value)} autoComplete="off" />
+              </div>
+              <div className="chips">
+                <button className="btn danger" disabled={conferma.trim().toUpperCase() !== 'ELIMINA' || eliminando} onClick={eliminaAccount}>{eliminando ? 'Eliminazione…' : 'Elimina definitivamente'}</button>
+                <button className="btn" onClick={() => { setElimina(false); setConferma(''); }}>Annulla</button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </Shell>
   );

@@ -13,6 +13,8 @@ const TESTI = {
   segui_accettato: () => 'ha accettato la tua richiesta: ora lo segui',
   tavolo_aperto: n => `ha aperto il tavolo “${n.tavoli?.titolo || ''}”`,
   tavolo_programmato: n => `ha programmato il tavolo “${n.tavoli?.titolo || ''}”`,
+  invito_tavolo: n => `ti invita al tavolo “${n.tavoli?.titolo || ''}”`,
+  segnalazione: () => 'è stato segnalato: c’è una nuova segnalazione da gestire',
 };
 
 export default function Notifiche() {
@@ -53,13 +55,18 @@ export default function Notifiche() {
           <div key={n.id} className={`notif ${n.letta ? '' : 'unread'}`}>
             <Link className="l" href={n.da ? `/u/${n.da.nickname}` : '#'}>
               <Avatar nick={n.da?.nickname} url={n.da?.avatar_url} size={38} />
-              <p><b>{n.da?.nickname || 'Qualcuno'}</b> {(TESTI[n.tipo] || (() => n.tipo))(n)}<br /><time>{quando(n.creato_il)}</time></p>
+              <p>{n.tipo === 'segnalazione' && !n.da
+                ? <>Nuova segnalazione su un tavolo da gestire</>
+                : <><b>{n.da?.nickname || 'Qualcuno'}</b> {(TESTI[n.tipo] || (() => n.tipo))(n)}</>}
+                <br /><time>{quando(n.creato_il)}</time></p>
             </Link>
             {n.tipo === 'richiesta_segui' && richieste.has(n.da_utente_id) && (
               <span className="chips"><button className="btn sm primary" onClick={() => rispondi(n.da_utente_id, true)}>Accetta</button>
                 <button className="btn sm" onClick={() => rispondi(n.da_utente_id, false)}>Rifiuta</button></span>
             )}
-            {n.tavolo_id && n.tavoli?.stato === 'aperto' && <Link className="btn sm" href={`/tavolo/${n.tavolo_id}`}>Vai al tavolo</Link>}
+            {n.tipo === 'segnalazione'
+              ? <Link className="btn sm" href="/admin">Gestisci</Link>
+              : n.tavolo_id && n.tavoli?.stato === 'aperto' && <Link className="btn sm" href={`/tavolo/${n.tavolo_id}`}>{n.tipo === 'invito_tavolo' ? 'Entra' : 'Vai al tavolo'}</Link>}
           </div>
         ))}
         {!lista.length && <p className="hint">Nessuna notifica. Segui qualcuno e attiva la campanella per sapere quando apre un tavolo.</p>}

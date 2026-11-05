@@ -9,6 +9,9 @@ const mono = JetBrains_Mono({ subsets: ['latin'], weight: ['500'], variable: '--
 export const metadata = {
   title: 'Tavoli',
   description: 'Siediti al tavolo e confrontati: politica, scuola, studio, psicologia, relazioni.',
+  applicationName: 'Tavoli',
+  appleWebApp: { capable: true, title: 'Tavoli', statusBarStyle: 'black-translucent' },
+  icons: { apple: '/icons/apple-touch-icon.png' },
 };
 
 export const viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#6a3df0' };

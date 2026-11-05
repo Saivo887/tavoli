@@ -19,7 +19,26 @@ const IC = {
   lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   search: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></>,
   out: <path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" />,
+  flag: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
+  link: <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />,
+  volume: <path d="M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" />,
+  shield: <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" />,
+  x: <path d="M6 6l12 12M18 6L6 18" />,
 };
+
+export function Modale({ titolo, onClose, children }) {
+  return (
+    <div className="modale-sfondo" onClick={onClose}>
+      <div className="modale" role="dialog" aria-modal="true" aria-label={titolo} onClick={e => e.stopPropagation()}>
+        <div className="modale-head">
+          <h3>{titolo}</h3>
+          <button className="back" onClick={onClose} aria-label="Chiudi"><Ico n="x" /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export function Ico({ n, size }) {
   return (

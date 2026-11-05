@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import Statistiche from '@/components/Statistiche';
+import Segnala from '@/components/Segnala';
 import { useAuth, useToast } from '@/components/Providers';
 import { Avatar, Ico, Caricamento } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +22,7 @@ export default function Utente() {
   const [mio, setMio] = useState(null);      // mia riga in seguiti verso di lui
   const [suo, setSuo] = useState(null);      // sua riga verso di me
   const [conferma, setConferma] = useState(false);
+  const [segnala, setSegnala] = useState(false);
 
   const carica = useCallback(async () => {
     const { data } = await supabase.from('profili').select('*').eq('nickname', nickname).maybeSingle();
@@ -95,12 +97,16 @@ export default function Utente() {
           <Statistiche s={stat} />
           <div style={{ marginTop: 8 }}>
             {!conferma
-              ? <button className="btn sm danger" onClick={() => setConferma(true)}>Blocca {p.nickname}</button>
+              ? <span className="chips">
+                  <button className="btn sm" onClick={() => setSegnala(true)}><Ico n="flag" />Segnala</button>
+                  <button className="btn sm danger" onClick={() => setConferma(true)}>Blocca {p.nickname}</button>
+                </span>
               : <div className="req"><span className="hint">Bloccandolo smettete di seguirvi e non potrete scrivervi.</span>
                   <span className="chips"><button className="btn sm danger" onClick={blocca}>Blocca</button><button className="btn sm" onClick={() => setConferma(false)}>Annulla</button></span></div>}
           </div>
         </div>
       </div>
+      {segnala && <Segnala cosa={{ utente: p.id, descrizione: p.nickname }} onClose={() => setSegnala(false)} />}
     </Shell>
   );
 }

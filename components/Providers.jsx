@@ -11,13 +11,18 @@ export function useToast() { return useContext(ToastCtx); }
 export default function Providers({ children }) {
   const [session, setSession] = useState(undefined);
   const [profilo, setProfilo] = useState(null);
+  const [admin, setAdmin] = useState(false);
   const [toast, setToast] = useState(null);
   const timer = useRef();
 
   const caricaProfilo = useCallback(async (uid) => {
-    if (!uid) { setProfilo(null); return; }
-    const { data } = await supabase.from('profili').select('*').eq('id', uid).maybeSingle();
+    if (!uid) { setProfilo(null); setAdmin(false); return; }
+    const [{ data }, { data: a }] = await Promise.all([
+      supabase.from('profili').select('*').eq('id', uid).maybeSingle(),
+      supabase.rpc('sono_admin'),
+    ]);
     setProfilo(data || null);
+    setAdmin(!!a);
   }, []);
 
   useEffect(() => {
@@ -29,19 +34,21 @@ export default function Providers({ children }) {
       setSession(s || null);
       caricaProfilo(s?.user?.id);
     });
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
     return () => sub.subscription.unsubscribe();
   }, [caricaProfilo]);
 
   const mostra = useCallback((msg) => {
     setToast(msg);
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToast(null), 2800);
+    timer.current = setTimeout(() => setToast(null), 3200);
   }, []);
 
   const value = {
     session,
     user: session?.user || null,
     profilo,
+    admin,
     ricaricaProfilo: () => caricaProfilo(session?.user?.id),
   };
 

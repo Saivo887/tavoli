@@ -15,6 +15,7 @@ export default function Statistiche({ s }) {
           <div className="stat"><b>{s.creati}</b><span>tavoli creati</span></div>
           <div className="stat"><b>{s.ospite}</b><span>da ospite</span></div>
           <div className="stat"><b>{s.pubblico}</b><span>dal pubblico</span></div>
+          <div className="stat"><b>{String(s.ore ?? 0).replace('.', ',')}</b><span>ore al tavolo</span></div>
         </>}
       </div>
       {s.visibile && s.temi?.length > 0 && (
@@ -31,7 +32,7 @@ export default function Statistiche({ s }) {
           <div className="list">{s.recenti.map(r => (
             <Link key={r.id} href={`/tavolo/${r.id}`}>
               <b>{r.titolo}</b>
-              <div className="hint">{r.ruolo} · {r.tema} · {quando(r.quando)}{r.stato === 'aperto' ? ' · in corso' : ''}</div>
+              <div className="hint">{r.ruolo} · {r.tema} · {quando(r.quando)}{r.minuti ? ` · ${r.minuti} min` : ''}{r.stato === 'aperto' ? ' · in corso' : ''}</div>
             </Link>
           ))}</div>
         </div>
